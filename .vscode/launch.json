@@ -1,7 +1,4 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
@@ -54,6 +51,43 @@
                 ],
                 "filter": {
                     "name": "smoke-test",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'means-to-an-end'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=means-to-an-end",
+                    "--package=protohackers"
+                ],
+                "filter": {
+                    "name": "means-to-an-end",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'means-to-an-end'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=means-to-an-end",
+                    "--package=protohackers"
+                ],
+                "filter": {
+                    "name": "means-to-an-end",
                     "kind": "bin"
                 }
             },
