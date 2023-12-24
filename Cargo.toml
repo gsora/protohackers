@@ -12,6 +12,10 @@ lto = true
 panic = "abort"
 
 [[bin]]
+name = "budget-chat"
+path = "src/budget-chat/main.rs"
+
+[[bin]]
 name = "smoke-test"
 path = "src/smoke-test/main.rs"
 

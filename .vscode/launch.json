@@ -23,6 +23,43 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'budget-chat'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=budget-chat",
+                    "--package=protohackers"
+                ],
+                "filter": {
+                    "name": "budget-chat",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'budget-chat'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=budget-chat",
+                    "--package=protohackers"
+                ],
+                "filter": {
+                    "name": "budget-chat",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug executable 'smoke-test'",
             "cargo": {
                 "args": [
