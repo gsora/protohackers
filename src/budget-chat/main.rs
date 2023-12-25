@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env::set_var;
 use std::sync::Arc;
-use tokio::io::AsyncBufReadExt;
-use tokio::io::AsyncReadExt;
+use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::net::TcpListener;
@@ -93,85 +92,81 @@ async fn main() {
 }
 
 async fn handle(stream: TcpStream, state: SafeState) {
-    let mut reader = tokio::io::BufReader::new(stream);
-
-    let mut maybe_recv: Option<mpsc::Receiver<RoomMessage>> = None;
+    let mut initialized = false;
     let mut nick = String::new();
 
+    let (socket_tx, mut socket_rx) = protohackers::socket::socket_rxtx(stream);
+
+    let mut recv = None;
+
     loop {
-        if maybe_recv.is_none() {
-            let new_recv = request_username(&mut reader, &state).await.unwrap();
-            maybe_recv = Some(new_recv.0);
+        if !initialized {
+            let new_recv = request_username(&socket_tx, &mut socket_rx, &state)
+                .await
+                .unwrap();
 
             nick = new_recv.1.trim().to_string();
 
             let names: Vec<String> = state.lock().await.handles.keys().cloned().collect();
 
-            reader
-                .get_mut()
-                .write_all(format!("* The room contains: {}\n", names.join(", ")).as_bytes())
+            socket_tx
+                .send(format!("* The room contains: {}\n", names.join(", ")))
                 .await
                 .unwrap();
+
+            initialized = true;
+            recv = Some(new_recv.0);
+
             continue;
         }
 
-        let recv = maybe_recv.as_mut().unwrap();
+        let recv = recv.as_mut().unwrap();
 
-        log::debug!("{}: checking other user's messages", nick);
-        match recv.try_recv() {
-            Ok(msg) => {
-                reader
-                    .get_mut()
-                    .write_all(format!("[{}]: {}", msg.user, msg.message).as_bytes())
-                    .await
-                    .unwrap();
-            }
-            Err(_) => (),
-        };
-
-        log::debug!("{}: done", nick);
-
-        log::debug!("{}: checking message to send", nick);
-        let mut sent_message = String::new();
-        
-        if !reader.fill_buf().await.unwrap_or_default().is_empty() {
-            match reader.read_line(&mut sent_message).await {
-                Ok(_) => {
+        tokio::select! {
+            user_input = socket_rx.recv() => {
+                let user_input = user_input.unwrap();
+                if let Some(user_input) = user_input {
                     state
                         .lock()
                         .await
                         .send_message(&RoomMessage {
                             user: nick.clone(),
-                            message: sent_message.clone(),
+                            message: user_input.clone(),
                         })
                         .await;
                 }
-                Err(_) => (),
-            };
+            }
+            other_user_msg = recv.recv() => {
+                if let Some(other_user_msg) = other_user_msg {
+                    let fmtd_msg = format!("[{}]: {}", other_user_msg.user, other_user_msg.message);
+                    socket_tx.send(fmtd_msg).await.unwrap();
+                }
+
+            }
         }
-        log::debug!("{}: done", nick);
     }
 }
 
 async fn request_username(
-    reader: &mut BufReader<TcpStream>,
+    socket_tx: &mpsc::Sender<String>,
+    socket_rx: &mut mpsc::Receiver<Option<String>>,
     state: &SafeState,
 ) -> Result<(mpsc::Receiver<RoomMessage>, String), Error> {
-    reader
-        .get_mut()
-        .write_all("Nick?\n".as_bytes())
-        .await
-        .unwrap();
+    socket_tx.send("Nick?\n".to_string()).await.unwrap();
 
-    let mut maybe_nick = String::new();
-
-    reader.read_line(&mut maybe_nick).await.unwrap();
+    let maybe_nick = {
+        loop {
+            if let Some(s) = socket_rx.recv().await.unwrap() {
+                break s;
+            }
+        }
+    };
 
     if !valid_nick(&maybe_nick) {
         return Err(Error::InvalidNick);
     }
 
-    maybe_nick = maybe_nick.trim().to_string();
+    let maybe_nick = maybe_nick.trim().to_string();
 
     let nick_clone = maybe_nick.clone();
 
